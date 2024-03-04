@@ -4,17 +4,19 @@ import numpy as np
 from leap_hand_utils.dynamixel_client import *
 import leap_hand_utils.leap_hand_utils as lhu
 import time
+from pynput.keyboard import Key, Listener
+import sys
 #######################################################
-"""This can control and query the LEAP Hand
+"""
+Click 0 1 2 3 for each finger to save their current positions
+Click q for all saved values
+0 - thumb
+1 - right
+2 - middle
+3 - left
 
-I recommend you only query when necessary and below 90 samples a second.  Each of position, velociy and current costs one sample, so you can sample all three at 30 hz or one at 90hz.
 
-#Allegro hand conventions:
-#0.0 is the all the way out beginning pose, and it goes positive as the fingers close more and more
-#http://wiki.wonikrobotics.com/AllegroHandWiki/index.php/Joint_Zeros_and_Directions_Setup_Guide I belive the black and white figure (not blue motors) is the zero position, and the + is the correct way around.  LEAP Hand in my videos start at zero position and that looks like that figure.
-
-#LEAP hand conventions:
-#180 is flat out for the index, middle, ring, fingers, and positive is closing more and more.
+WRONG
 
 """
 ########################################################
@@ -42,7 +44,7 @@ class LeapNode:
                 self.dxl_client.connect()
         #Enables position-current control mode and the default parameters, it commands a position and then caps the current so the motors don't overload
         self.dxl_client.sync_write(motors, np.ones(len(motors))*5, 11, 1)
-        self.dxl_client.set_torque_enabled(motors, True)
+        self.dxl_client.set_torque_enabled(motors, False)
         self.dxl_client.sync_write(motors, np.ones(len(motors)) * self.kP, 84, 2) # Pgain stiffness     
         self.dxl_client.sync_write([0,4,8], np.ones(3) * (self.kP * 0.75), 84, 2) # Pgain stiffness for side to side should be a bit less
         self.dxl_client.sync_write(motors, np.ones(len(motors)) * self.kI, 82, 2) # Igain
@@ -50,7 +52,7 @@ class LeapNode:
         self.dxl_client.sync_write([0,4,8], np.ones(3) * (self.kD * 0.75), 80, 2) # Dgain damping for side to side should be a bit less
         #Max at current (in unit 1ma) so don't overheat and grip too hard #500 normal or #350 for lite
         self.dxl_client.sync_write(motors, np.ones(len(motors)) * self.curr_lim, 102, 2)
-        self.dxl_client.write_desired_pos(self.motors, self.curr_pos)
+        #self.dxl_client.write_desired_pos(self.motors, self.curr_pos)
 
     #Receive LEAP pose and directly control the robot
     def set_leap(self, pose):
@@ -78,14 +80,41 @@ class LeapNode:
     #read current
     def read_cur(self):
         return self.dxl_client.read_cur()
+    
 #init the node
-def main(**kwargs):
-    leap_hand = LeapNode()
-    while True:
-        leap_hand.set_allegro(np.zeros(16))
-        print("Position: " + str(leap_hand.read_pos()))
-        time.sleep(0.03)
+# Global variables to store positions
+positions = [None] * 16  # Assuming 16 positions to cover all indices for keys 0-3.
+
+def on_press(key):
+    try:
+        if key.char in ['0', '1', '2', '3']:
+            index = int(key.char)
+            # Calculate the specific indices to update based on the key pressed.
+            indices = [index, index + 4, index + 8, index + 12]
+            # Fetch the current positions.
+            current_positions = leap_hand.read_pos()
+            # Update the positions at the calculated indices.
+            for i in indices:
+                positions[i] = current_positions[i]
+            print(f"Saved positions for key {key.char}: {[current_positions[i] for i in indices]}")
+        elif key.char == 'q':
+            # Ensure all positions have been filled; otherwise, indicate missing values.
+            if None in positions:
+                print("Warning: Not all positions have been set. Missing values are marked as None.")
+            print("Final saved positions:", positions)
+            return False  # Stops the listener and exits the loop
+    except AttributeError:
+        pass  # Handle special keys here if needed
+
 
 
 if __name__ == "__main__":
-    main()
+    leap_hand = LeapNode()
+    # Start listening to keystrokes
+    with Listener(on_press=on_press) as listener:
+        listener.join()
+
+
+
+#destination = [3.500544, 2.063204, 5.163379, 3.512816, 4.396389, 2.6231072, 3.121651, 5.286098, 4.0558453, 5.026855, 4.7752824, 5.017651, 4.6234183, 3.34101, 3.6401365, 3.5665054]
+

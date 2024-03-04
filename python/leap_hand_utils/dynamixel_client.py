@@ -24,7 +24,7 @@ LEN_PRESENT_CURRENT = 2
 LEN_PRESENT_POS_VEL_CUR = 10
 LEN_GOAL_POSITION = 4
 
-DEFAULT_POS_SCALE = 2.0 * np.pi / 4096  # 0.088 degrees
+DEFAULT_POS_SCALE = 2.0 * np.pi / 4096  # 0.088 degrees 0.0015332
 # See http://emanual.robotis.com/docs/en/dxl/x/xh430-v210/#goal-velocity
 DEFAULT_VEL_SCALE = 0.229 * 2.0 * np.pi / 60.0  # 0.229 rpm
 DEFAULT_CUR_SCALE = 1.34
@@ -229,7 +229,7 @@ class DynamixelClient:
             positions: The joint angles in radians to write.
         """
         assert len(motor_ids) == len(positions)
-
+        
         # Convert to Dynamixel position space.
         positions = positions / self._pos_vel_cur_reader.pos_scale
         self.sync_write(motor_ids, positions, ADDR_GOAL_POSITION,
@@ -580,7 +580,7 @@ if __name__ == '__main__':
         default='/dev/ttyUSB0',
         help='The Dynamixel device to connect to.')
     parser.add_argument(
-        '-b', '--baud', default=1000000, help='The baudrate to connect with.')
+        '-b', '--baud', default=4000000, help='The baudrate to connect with.')
     parsed_args = parser.parse_args()
 
     motors = [int(motor) for motor in parsed_args.motors.split(',')]
