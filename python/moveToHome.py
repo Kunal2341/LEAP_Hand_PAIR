@@ -25,9 +25,9 @@ class LeapNode:
     def __init__(self):
         ####Some parameters
         # self.ema_amount = float(rospy.get_param('/leaphand_node/ema', '1.0')) #take only current
-        self.kP = 600
+        self.kP = 300 #37 #600
         self.kI = 0
-        self.kD = 200
+        self.kD =  100 #12 # 200
         self.curr_lim = 350 #Max number for current 
         """
         How the hand is numbered:
@@ -69,7 +69,7 @@ class LeapNode:
         #You can put the correct port here or have the node auto-search for a hand at the first 3 ports.
         self.motors = motors = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
         try:
-            self.dxl_client = DynamixelClient(motors, '/dev/ttyUSB2', 4000000)
+            self.dxl_client = DynamixelClient(motors, '/dev/ttyUSB0', 4000000)
             self.dxl_client.connect()
         except Exception:
             try:

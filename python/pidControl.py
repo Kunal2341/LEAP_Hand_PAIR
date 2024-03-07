@@ -21,19 +21,84 @@ I recommend you only query when necessary and below 90 samples a second.  Each o
 
 """
 ########################################################
+from pynput.keyboard import Key, Listener
+import threading
+
+class KeyboardController:
+    def __init__(self, leap_node):
+        self.leap_node = leap_node
+        self.ctTorque = 0
+    def on_press(self, key):
+        homeRad = np.array([3.1492627, 1.6444274, 4.847379,  3.1768742, 
+                            4.7522726, 3.1415927, 3.1400588, 4.715457, 
+                            3.118583, 3.0771654, 3.103243, 3.0771654, 
+                            3.0802333, 3.104777, 3.028078,  3.0633597])
+        graspRad = np.array([3.8487577, 2.3331847, 5.608234, 4.0052238, 
+                            4.6479616, 1.7932235, 3.034214, 5.74169, 
+                            3.6125247, 4.868855, 4.414797, 4.9010687, 
+                            4.697049, 3.342544, 3.8686996, 3.351748])
+        starPosRad = np.array([3.123185, 2.1997285, 6.688156, 3.6968937, 
+                                6.3169327, 2.2120004, 3.1630683, 5.7877097, 
+                                3.117049, 3.2198257, 2.9943304, 3.0495539, 
+                                3.0771654, 3.181476, 3.2535732, 3.2551072])
+        bigGrasp = np.array([3.4468548, 2.5786216, 6.4135737, 4.5006995, 
+                            5.108156, 1.59534, 3.113981, 6.0070686, 
+                            4.407127, 4.9210105, 3.282719, 4.891865, 
+                            4.2660007, 3.0618258, 4.4316707, 3.2198257])
+        if key == Key.right:
+            # Increase PID values by 10%
+            self.leap_node.adjust_pid(1.1)
+            print("PID values increased by 10%.")
+        elif key == Key.left:
+            # Decrease PID values by 10%
+            self.leap_node.adjust_pid(0.9)
+            print("PID values decreased by 10%.")
+        elif hasattr(key, 'char'):  # Check if key event has 'char' attribute
+            if key.char == '1':
+                print("Moving to home position...")
+                self.leap_node.set_leap(homeRad)
+            elif key.char == '2':
+                print("Moving to grasp position...")
+                self.leap_node.set_leap(graspRad)
+            elif key.char == '3':
+                print("Moving to star position...")
+                self.leap_node.set_leap(starPosRad)
+            elif key.char == '4':
+                print("Moving to big grasp position...")
+                self.leap_node.set_leap(bigGrasp)
+        elif key == Key.space:
+            # Toggle torque enabled
+            if self.ctTorque % 2 == 0:
+                self.leap_node.set_torque_False()
+                print(f"Torque Enabled: False")
+                self.ctTorque += 1
+            else:
+                self.leap_node.set_torque_True()
+                print(f"Torque Enabled: True")
+                self.ctTorque += 1
+
+
+    def on_release(self, key):
+        if key == Key.esc:
+            # Stop listener
+            return False
+
+    def start(self):
+        # Collect events until released
+        with Listener(on_press=self.on_press, on_release=self.on_release) as listener:
+            listener.join()
+
 class LeapNode:
-    DEFAULT_POS_SCALE = 2.0 * np.pi / 4096  # 0.088 degrees 0.0015332
-    # See http://emanual.robotis.com/docs/en/dxl/x/xh430-v210/#goal-velocity
-    DEFAULT_VEL_SCALE = 0.229 * 2.0 * np.pi / 60.0  # 0.229 rpm
-    DEFAULT_CUR_SCALE = 1.34
     def __init__(self):
         ####Some parameters
         # self.ema_amount = float(rospy.get_param('/leaphand_node/ema', '1.0')) #take only current
-        self.kP = 600
+
+        #I like 115, 20
+
+        self.kP = 300 #37 #600 
         self.kI = 0
-        self.kD = 200
+        self.kD =  100 #12 # 200
         self.curr_lim = 350 #Max number for current 
-        self.prev_error = np.zeros(16)  
         """
         How the hand is numbered:
 
@@ -45,16 +110,20 @@ class LeapNode:
 
         """
         
-        
         homeRad = np.array([3.1492627, 1.6444274, 4.847379,  3.1768742, 
                             4.7522726, 3.1415927, 3.1400588, 4.715457, 
                             3.118583, 3.0771654, 3.103243, 3.0771654, 
                             3.0802333, 3.104777, 3.028078,  3.0633597])
-                            
+        graspRad = np.array([3.8487577, 2.3331847, 5.608234, 4.0052238, 
+                            4.6479616, 1.7932235, 3.034214, 5.74169, 
+                            3.6125247, 4.868855, 4.414797, 4.9010687, 
+                            4.697049, 3.342544, 3.8686996, 3.351748])
+        #destination = [3.8487577, 2.3331847, 5.608234, 4.0052238, 4.6479616, 1.7932235, 3.034214, 5.74169, 3.6125247, 4.868855, 4.414797, 4.9010687, 4.697049, 3.342544, 3.8686996, 3.351748]
+        #homeRad = np.array(destination)
 
         homeDeg = homeRad / 0.0015339807878856412 #self.dxl_client._pos_vel_cur_reader.pos_scale
-        homeRadStr = [f"{val:.5f}" for val in homeRad]
-        homeDegStr = [f"{val:.1f}" for val in homeDeg]
+        # homeRadStr = [f"{val:.5f}" for val in homeRad]
+        # homeDegStr = [f"{val:.1f}" for val in homeDeg]
 
         # Function to print 4 values per row
         def print_values(arr, title):
@@ -64,8 +133,8 @@ class LeapNode:
             print("]")
 
         # Print formatted strings
-        print_values(homeRadStr, "Home position Radians (0 - 2pi) is")
-        print_values(homeDegStr, "Home position Ticks (0-4096) is")
+        # print_values(homeRadStr, "Home position Radians (0 - 2pi) is")
+        # print_values(homeDegStr, "Home position Ticks (0-4096) is")
         
         self.prev_pos = self.pos = self.curr_pos = homeRad
 
@@ -73,7 +142,7 @@ class LeapNode:
         #You can put the correct port here or have the node auto-search for a hand at the first 3 ports.
         self.motors = motors = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
         try:
-            self.dxl_client = DynamixelClient(motors, '/dev/ttyUSB2', 4000000)
+            self.dxl_client = DynamixelClient(motors, '/dev/ttyUSB0', 4000000)
             self.dxl_client.connect()
         except Exception:
             try:
@@ -83,7 +152,7 @@ class LeapNode:
                 self.dxl_client = DynamixelClient(motors, 'COM13', 4000000)
                 self.dxl_client.connect()
         #Enables position-current control mode and the default parameters, it commands a position and then caps the current so the motors don't overload
-        self.dxl_client.sync_write(motors, np.ones(len(motors))*5, 11, 1)
+        self.dxl_client.sync_write(motors, np.ones(len(motors)) * 5, 11, 1)
         self.dxl_client.set_torque_enabled(motors, True)
         self.dxl_client.sync_write(motors, np.ones(len(motors)) * self.kP, 84, 2) # Pgain stiffness     
         self.dxl_client.sync_write([0,4,8], np.ones(3) * (self.kP * 0.75), 84, 2) # Pgain stiffness for side to side should be a bit less
@@ -94,7 +163,26 @@ class LeapNode:
         self.dxl_client.sync_write(motors, np.ones(len(motors)) * self.curr_lim, 102, 2)
         
         self.dxl_client.write_desired_pos(self.motors, self.curr_pos)
+    def adjust_pid(self, multiplier):
+        self.kP = int(self.kP * multiplier)
+        self.kI = int(self.kI * multiplier)
+        self.kD = int(self.kD * multiplier)
+        print(f"PID adjusted: kP={self.kP}, kI={self.kI}, kD={self.kD}")
+        # Apply the new PID values to the motors
+        self.apply_pid_settings()
+    def apply_pid_settings(self):
+        self.dxl_client.sync_write(self.motors, np.ones(len(self.motors)) * self.kP, 84, 2) # Pgain stiffness     
+        self.dxl_client.sync_write([0,4,8], np.ones(3) * (self.kP * 0.75), 84, 2) # Pgain stiffness for side to side should be a bit less
+        self.dxl_client.sync_write(self.motors, np.ones(len(self.motors)) * self.kI, 82, 2) # Igain
+        self.dxl_client.sync_write(self.motors, np.ones(len(self.motors)) * self.kD, 80, 2) # Dgain damping
+        self.dxl_client.sync_write([0,4,8], np.ones(3) * (self.kD * 0.75), 80, 2) # Dgain damping for side to side should be a bit less
     
+    def set_torque_False(self):
+        # Toggle the tracked state and apply the change
+        self.dxl_client.set_torque_enabled(self.motors, False)
+    def set_torque_True(self):
+        # Toggle the tracked state and apply the change
+        self.dxl_client.set_torque_enabled(self.motors, True)
     #Receive LEAP pose and directly control the robot
     def set_leap(self, pose):
         self.prev_pos = self.curr_pos
@@ -121,55 +209,18 @@ class LeapNode:
     #read current
     def read_cur(self):
         return self.dxl_client.read_cur()
-    def move_to_destination(self, destination, max_velocity=0.1, max_current=200):
-        # Ensure destination length matches the number of motors
-        assert len(destination) == len(self.motors), "Destination length must match number of motors"
-        
-        current_positions = np.array(self.read_pos())
-        destination = np.array(destination)
-        
-        # Convert destination to Dynamixel units if necessary
-        destination_units = destination / DEFAULT_POS_SCALE
-        
-        # PID controller loop
-        while not np.allclose(current_positions, destination_units, atol=0.01):
-            error = destination_units - current_positions
-            proportional = error * self.kP
-            derivative = (error - self.prev_error) * self.kD / DEFAULT_VEL_SCALE
-            self.prev_error = error
-            
-            # Calculate control signal
-            control_signal = proportional + derivative
-            
-            # Read current velocity and current for feedback
-            current_velocity = np.array(self.read_vel())
-            current_current = np.array(self.read_cur())
-            
-            # Adjust control signal based on feedback
-            control_signal = np.clip(control_signal, -max_velocity, max_velocity)
-            control_signal = np.where(current_current > max_current, 0, control_signal)
-            
-            # Calculate new positions based on control signal and scale to Dynamixel units
-            new_positions = current_positions + control_signal
-            
-            # Write new positions to motors
-            self.set_leap(new_positions)
-            
-            # Update current positions
-            current_positions = np.array(self.read_pos())
-            
-            # Small delay to allow motors to move
-            time.sleep(0.05)
-            
-        print("Reached destination")
-
 #init the node
 
 def main(**kwargs):
     leap_hand = LeapNode()
-    destination = [3.8487577, 2.3331847, 5.608234, 4.0052238, 4.6479616, 1.7932235, 3.034214, 5.74169, 3.6125247, 4.868855, 4.414797, 4.9010687, 4.697049, 3.342544, 3.8686996, 3.351748]
-    homeRad = np.array(destination)
-    leap_hand.move_to_destination(destination=destination)
+    kb_controller = KeyboardController(leap_hand)
+    kb_thread = threading.Thread(target=kb_controller.start)
+    kb_thread.start()
+
+    #while kb_thread.is_alive():
+        #print("Position: " + str(leap_hand.read_pos()))
+        #time.sleep(0.03)
+
 
 
 if __name__ == "__main__":
