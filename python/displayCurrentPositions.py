@@ -34,7 +34,7 @@ class LeapNode:
                 self.dxl_client = DynamixelClient(motors, '/dev/ttyUSB1', 4000000)
                 self.dxl_client.connect()
             except Exception:
-                self.dxl_client = DynamixelClient(motors, 'COM13', 4000000)
+                self.dxl_client = DynamixelClient(motors, 'COM7', 4000000)
                 self.dxl_client.connect()
         #Enables position-current control mode and the default parameters, it commands a position and then caps the current so the motors don't overload
         self.dxl_client.sync_write(motors, np.ones(len(motors))*5, 11, 1)
@@ -153,7 +153,7 @@ fig.canvas.mpl_connect('close_event', on_close)
 ani = FuncAnimation(fig, update, frames=np.linspace(0, 100, 10000), init_func=init, blit=True, interval=50)
 
 plt.show()
-
+print("Pos: ",leap_hand.read_pos())
 """
 How the hand is numbered:
 
